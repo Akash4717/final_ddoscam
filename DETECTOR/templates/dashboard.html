@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>AI DDoS Detector — Multi-Camera Console</title>
+  <link rel="icon" type="image/x-icon" href="/static/favicon.ico">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    :root{
+      --bg:#070814;--line:rgba(255,255,255,0.06);--txt:#e8edff;--muted:#9fb0ff;--bad:#ff5b6e;--good:#3ee98a;
+      --cam1:#3ee98a;--cam2:#6ec3ff;
+    }
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:Inter,Arial; color:var(--txt); background: radial-gradient(circle at 20% 10%, #0c1130,#070a1e); padding:18px}
+    .container{max-width:1400px;margin:0 auto}
+    .header{display:flex; justify-content:space-between; align-items:center; margin-bottom:18px}
+    .card{background:rgba(255,255,255,0.03); border:1px solid var(--line); padding:14px; border-radius:12px}
+    .camera-section{margin-bottom:24px; border:2px solid var(--line); border-radius:16px; padding:16px}
+    .camera-section.cam1{border-color:rgba(62,233,138,0.3)}
+    .camera-section.cam2{border-color:rgba(110,195,255,0.3)}
+    .camera-header{display:flex; justify-content:space-between; align-items:center; margin-bottom:12px}
+    .camera-title{font-size:20px; font-weight:700}
+    .cam1-title{color:var(--cam1)}
+    .cam2-title{color:var(--cam2)}
+    .stats{display:grid; grid-template-columns:repeat(5,1fr); gap:12px; margin-bottom:14px}
+    .big{font-size:28px; font-weight:800}
+    .controls{display:flex; gap:8px; margin-bottom:14px}
+    .btn{padding:8px 12px; border-radius:10px; border:1px solid var(--line); cursor:pointer; background:transparent;color:var(--txt)}
+    .btn-red{border-color:rgba(255,91,110,.45)}
+    .btn-green{border-color:rgba(62,233,138,.45)}
+    .btn-blue{border-color:rgba(110,195,255,.45)}
+    .panels{display:grid; grid-template-columns:1.5fr 1fr; gap:12px}
+    .panel{padding:12px}
+    table{width:100%;border-collapse:collapse}
+    th,td{padding:8px;border-bottom:1px solid var(--line);text-align:left;font-size:14px}
+    .ip-tag{display:inline-block;padding:6px 10px;border-radius:8px;margin:4px;background:rgba(255,91,110,.08);color:var(--bad);border:1px solid rgba(255,91,110,.18)}
+    .small{font-size:12px;color:var(--muted)}
+    .right{display:flex;gap:8px;align-items:center}
+    .muted{color:var(--muted)}
+    .table-scroll{max-height:180px; overflow:auto}
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <div>
+        <h2>AI DDoS Detector — Multi-Camera Console</h2>
+        <div class="small muted">Live telemetry • Dual Camera Monitoring • Blacklist Management</div>
+      </div>
+      <div class="right">
+        <button class="btn btn-green" onclick="refreshStats()">Refresh All</button>
+        <button class="btn btn-red" onclick="resetAll()">Reset All</button>
+      </div>
+    </div>
+
+    <!-- CAMERA 1 -->
+    <div class="camera-section cam1">
+      <div class="camera-header">
+        <div class="camera-title cam1-title">📹 Camera 1 (Port 8000)</div>
+        <div class="right">
+          <button class="btn btn-green" onclick="mitigateCamera('camera1')">Mitigate</button>
+          <button class="btn btn-red" onclick="resetCamera('camera1')">Reset</button>
+        </div>
+      </div>
+
+      <div class="stats">
+        <div class="card">
+          <div class="small muted">Status</div>
+          <div class="big" id="cam1-status">Normal</div>
+        </div>
+        <div class="card">
+          <div class="small muted">Packets / Sec</div>
+          <div class="big" id="cam1-packets">0</div>
+        </div>
+        <div class="card">
+          <div class="small muted">Unique IPs</div>
+          <div class="big" id="cam1-ips">0</div>
+        </div>
+        <div class="card">
+          <div class="small muted">Confidence</div>
+          <div class="big" id="cam1-conf">0%</div>
+        </div>
+        <div class="card">
+          <div class="small muted">Alerts</div>
+          <div class="big" id="cam1-alerts">0</div>
+        </div>
+      </div>
+
+      <div class="panels">
+        <div>
+          <div class="card panel">
+            <h4>Real-Time Traffic</h4>
+            <canvas id="cam1-traffic" style="height:140px"></canvas>
+          </div>
+          <div class="card panel" style="margin-top:12px">
+            <h4>Flagged Malicious IPs</h4>
+            <div id="cam1-malicious" style="margin-top:8px">
+              <div class="muted">No malicious IPs detected</div>
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <div class="card panel">
+            <h4>Detection Overview</h4>
+            <canvas id="cam1-detection" style="height:160px"></canvas>
+          </div>
+          <div class="card panel" style="margin-top:12px">
+            <h4>Blacklisted IPs</h4>
+            <div class="table-scroll">
+              <table>
+                <thead><tr><th>IP</th><th>Since</th></tr></thead>
+                <tbody id="cam1-blacklist"><tr><td colspan="2" class="muted">None</td></tr></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- CAMERA 2 -->
+    <div class="camera-section cam2">
+      <div class="camera-header">
+        <div class="camera-title cam2-title">📹 Camera 2 (Port 8001)</div>
+        <div class="right">
+          <button class="btn btn-blue" onclick="mitigateCamera('camera2')">Mitigate</button>
+          <button class="btn btn-red" onclick="resetCamera('camera2')">Reset</button>
+        </div>
+      </div>
+
+      <div class="stats">
+        <div class="card">
+          <div class="small muted">Status</div>
+          <div class="big" id="cam2-status">Normal</div>
+        </div>
+        <div class="card">
+          <div class="small muted">Packets / Sec</div>
+          <div class="big" id="cam2-packets">0</div>
+        </div>
+        <div class="card">
+          <div class="small muted">Unique IPs</div>
+          <div class="big" id="cam2-ips">0</div>
+        </div>
+        <div class="card">
+          <div class="small muted">Confidence</div>
+          <div class="big" id="cam2-conf">0%</div>
+        </div>
+        <div class="card">
+          <div class="small muted">Alerts</div>
+          <div class="big" id="cam2-alerts">0</div>
+        </div>
+      </div>
+
+      <div class="panels">
+        <div>
+          <div class="card panel">
+            <h4>Real-Time Traffic</h4>
+            <canvas id="cam2-traffic" style="height:140px"></canvas>
+          </div>
+          <div class="card panel" style="margin-top:12px">
+            <h4>Flagged Malicious IPs</h4>
+            <div id="cam2-malicious" style="margin-top:8px">
+              <div class="muted">No malicious IPs detected</div>
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <div class="card panel">
+            <h4>Detection Overview</h4>
+            <canvas id="cam2-detection" style="height:160px"></canvas>
+          </div>
+          <div class="card panel" style="margin-top:12px">
+            <h4>Blacklisted IPs</h4>
+            <div class="table-scroll">
+              <table>
+                <thead><tr><th>IP</th><th>Since</th></tr></thead>
+                <tbody id="cam2-blacklist"><tr><td colspan="2" class="muted">None</td></tr></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+<script>
+  // Camera 1 Charts
+  const cam1TrafficCtx = document.getElementById('cam1-traffic').getContext('2d');
+  const cam1TrafficChart = new Chart(cam1TrafficCtx, {
+    type: 'line',
+    data: {labels: [], datasets: [{ label: 'PPS', data: [], tension: .3, fill:true, borderColor:'#3ee98a', backgroundColor:'rgba(62,233,138,0.1)' }]},
+    options: { animation:{duration:200}, scales:{y:{beginAtZero:true}}, plugins:{legend:{display:false}} }
+  });
+
+  const cam1DetectionCtx = document.getElementById('cam1-detection').getContext('2d');
+  const cam1DetectionChart = new Chart(cam1DetectionCtx, {
+    type: 'doughnut',
+    data: { labels: ['Normal','Attack'], datasets:[{ data:[100,0], backgroundColor:['#3ee98a','#ff5b6e'] }]},
+    options: { cutout:'70%' }
+  });
+
+  // Camera 2 Charts
+  const cam2TrafficCtx = document.getElementById('cam2-traffic').getContext('2d');
+  const cam2TrafficChart = new Chart(cam2TrafficCtx, {
+    type: 'line',
+    data: {labels: [], datasets: [{ label: 'PPS', data: [], tension: .3, fill:true, borderColor:'#6ec3ff', backgroundColor:'rgba(110,195,255,0.1)' }]},
+    options: { animation:{duration:200}, scales:{y:{beginAtZero:true}}, plugins:{legend:{display:false}} }
+  });
+
+  const cam2DetectionCtx = document.getElementById('cam2-detection').getContext('2d');
+  const cam2DetectionChart = new Chart(cam2DetectionCtx, {
+    type: 'doughnut',
+    data: { labels: ['Normal','Attack'], datasets:[{ data:[100,0], backgroundColor:['#6ec3ff','#ff5b6e'] }]},
+    options: { cutout:'70%' }
+  });
+
+  // Helpers
+  function el(id){return document.getElementById(id)}
+  function fmt(n){ return Number(n||0).toLocaleString() }
+
+  function updateCamera(prefix, data){
+    const cur = data.current || {};
+
+    el(`${prefix}-status`).textContent = (cur.status && cur.status !== 'Normal') ? `${cur.status}` : 'Normal';
+    el(`${prefix}-packets`).textContent = fmt(Math.round(cur.packets_per_sec||0));
+    el(`${prefix}-ips`).textContent = fmt(cur.unique_src_ips||0);
+    el(`${prefix}-conf`).textContent = (cur.confidence||0).toFixed(1) + '%';
+    el(`${prefix}-alerts`).textContent = fmt(cur.alerts||0);
+
+    // Malicious IPs
+    const malicious = cur.malicious_ips || [];
+    const malBox = el(`${prefix}-malicious`);
+    if(!malicious.length){
+      malBox.innerHTML = `<div class="muted">No malicious IPs detected</div>`;
+    } else {
+      malBox.innerHTML = malicious.map(ip=>`<span class="ip-tag">${ip}</span>`).join('');
+    }
+
+    // Blacklist
+    const black = data.blacklisted_ips || [];
+    const blBody = el(`${prefix}-blacklist`);
+    if(!black.length){
+      blBody.innerHTML = `<tr><td colspan="2" class="muted">None</td></tr>`;
+    } else {
+      blBody.innerHTML = black.map(b=>`<tr><td>${b.ip}</td><td>${b.blocked_at}</td></tr>`).join('');
+    }
+
+    // Traffic Chart
+    const T = data.traffic_history || [];
+    const chart = prefix === 'cam1' ? cam1TrafficChart : cam2TrafficChart;
+    chart.data.labels = T.map(()=> '');
+    chart.data.datasets[0].data = T;
+    chart.update();
+
+    // Detection Chart
+    const D = data.detection_history || [];
+    const normalCount = D.filter(x=>!x.is_attack).length;
+    const attackCount = D.filter(x=>x.is_attack).length;
+    const detChart = prefix === 'cam1' ? cam1DetectionChart : cam2DetectionChart;
+    detChart.data.datasets[0].data = [normalCount, attackCount];
+    detChart.update();
+  }
+
+  async function updateDashboard(){
+    try{
+      const r = await fetch('/api/stats');
+      const data = await r.json();
+      
+      updateCamera('cam1', data.camera1 || {});
+      updateCamera('cam2', data.camera2 || {});
+    } catch(err){
+      console.error("Update failed", err);
+    }
+  }
+
+  function refreshStats(){ updateDashboard(); }
+  
+  async function resetCamera(camera){
+    if(!confirm(`Reset ${camera.toUpperCase()}?`)) return;
+    await fetch('/api/reset', {
+      method:'POST', 
+      headers:{'Content-Type':'application/json'}, 
+      body: JSON.stringify({camera: camera})
+    });
+    updateDashboard();
+  }
+
+  async function resetAll(){
+    if(!confirm('Reset all cameras?')) return;
+    await fetch('/api/reset', {
+      method:'POST', 
+      headers:{'Content-Type':'application/json'}, 
+      body: JSON.stringify({camera: 'all'})
+    });
+    updateDashboard();
+  }
+
+  async function mitigateCamera(camera){
+    if(!confirm(`Mitigate malicious IPs for ${camera.toUpperCase()}?`)) return;
+    try{
+      const res = await fetch('/api/mitigate', {
+        method:'POST', 
+        headers: {'Content-Type':'application/json'}, 
+        body: JSON.stringify({camera: camera})
+      });
+      const data = await res.json();
+      if(data.ok){
+        alert(`Mitigation executed for ${camera}. Blocked: ${(data.blocked||[]).join(', ') || 'None'}`);
+      } else {
+        alert(data.message || 'No malicious IPs to block');
+      }
+    } catch(e){ 
+      console.error(e); 
+      alert('Mitigation failed'); 
+    }
+    updateDashboard();
+  }
+
+  // Initial + periodic refresh
+  updateDashboard();
+  setInterval(updateDashboard, 2000);
+</script>
+</body>
+</html>
