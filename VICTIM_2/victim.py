@@ -20,7 +20,7 @@ import numpy as np
 from datetime import datetime
 
 # ---------- CONFIG ----------
-DETECTOR_URL = "http://10.35.14.214:5000"
+DETECTOR_URL = "http://10.72.9.214:5000"
 AGG_INTERVAL = 2.0
 MAX_HISTORY = 200
 
